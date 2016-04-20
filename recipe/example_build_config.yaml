@@ -1,0 +1,5 @@
+requirements:
+  build:
+    - python 3.3*
+    - numpy 1.9*
+    - hdf5 1.8.15*

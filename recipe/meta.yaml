@@ -1,13 +1,20 @@
-{% set version = "2.6.0" %}
-
 package:
-  name: h5py
-  version: {{ version }}
+    name: h5py
 
+  {% if GIT_DESCRIBE_NUMBER|int == 0 %}
+    version: {{GIT_DESCRIBE_TAG}}
+  {% else %}
+    # If we're using a non-tagged revision, append '.postN' to the version
+    version: {{GIT_DESCRIBE_TAG}}.post{{GIT_DESCRIBE_NUMBER}}
+  {% endif %}
+  
 source:
-  fn: h5py-{{ version }}.tar.gz
-  url: https://github.com/h5py/h5py/archive/{{ version }}.tar.gz
-  md5: 613c5776192eaf02ff96a82dfc6d2e78
+  git_url: https://github.com/h5py/h5py
+  git_tag: 2.6.0
+
+  ## Note: The logic above works for non-tagged revisions, too:
+  #git_tag: HEAD
+  
   patches:
     # Patch a test that appears to be failing in some cases.
     # This patch has been submitted to upstream.
@@ -19,23 +26,40 @@ source:
     - h5py_win_setup_build.py.patch
 
 build:
-  number: 3
-
+  # The 'majorminor' filter just converts X.Y.Z --> XY
+  # (See recipe/jinja_config.py)
+  {% set py_xx = installed['python']['version'] | majorminor %}
+  {% set np_xx = installed['numpy']['version']  | majorminor %}
+  
+  number: 4
+  string: np{{ np_xx }}py{{ py_xx }}_{{ PKG_BUILDNUM }}
+  
 requirements:
   build:
-    - python
-    - numpy x.x
-    - hdf5 1.8.15*
-    - cython
+
+    # We constrain these dependencies, but don't require exact versions.
+    # The user will further constrain some of these to an exact version, using either:
+    # conda build --build-config=pinned.yaml h5py
+    # conda build --bootstrap=my-env h5py
+
+    - python >=2.7,<3|>=3.2
+    - numpy >=1.6.1
+    - hdf5 >=1.8.4
+    - cython >=0.19
     - six
     - pkgconfig
 
   run:
-    - python
-    - numpy x.x
-    - hdf5 1.8.15*
-    - six
-    - unittest2    # [py26]
+    # We don't require the exact version for each of these, but we do need to 
+    # restrict to versions that are compatible with the build.
+    # The 'compatible' filter just converts X.Y.Z --> X.Y
+    # (See recipe/jinja_config.py)
+
+    - python    {{ installed['python']['version'] | compatible    }}
+    - numpy     {{ installed['numpy']['version']  | compatible    }},>=1.6.1
+    - hdf5      {{ installed['hdf5']['version']   | compatible(3) }} # HDF5 ABI depends on all three parts: X.Y.Z
+    - six       {{ installed['six']['version']    | compatible    }}
+    - unittest2 # [py26]
 
 test:
   imports:
@@ -44,6 +68,7 @@ test:
 about:
   home: http://www.h5py.org/
   license: BSD 3-Clause
+  license_file: licenses/license.txt
   summary: Read and write HDF5 files from Python.
 
 extra:
